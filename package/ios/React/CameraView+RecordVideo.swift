@@ -20,6 +20,24 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
                                            bitRateOverride: videoBitRateOverride?.doubleValue,
                                            bitRateMultiplier: videoBitRateMultiplier?.doubleValue)
 
+      // Configure the audio session based on allowDeviceAudioPlayback
+      if audio {
+        do {
+          if allowDeviceAudioPlayback {
+            try AVAudioSession.sharedInstance().setCategory(.playAndRecord,
+                                                           options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers])
+          } else {
+            // Default behavior - interrupts other audio
+            try AVAudioSession.sharedInstance().setCategory(.record,
+                                                           options: [.allowBluetooth])
+          }
+          try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+          callback.reject(error: .capture(.audioError(message: error.localizedDescription)), cause: error as NSError)
+          return
+        }
+      }
+
       // Start Recording with success and error callbacks
       cameraSession.startRecording(
         options: options,
@@ -42,10 +60,32 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
 
   func stopRecording(promise: Promise) {
     cameraSession.stopRecording(promise: promise)
+    
+    // Reset audio session if needed
+    if audio {
+      do {
+        try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+      } catch {
+        // We don't want to reject the promise here since the recording was successful
+        // Just log the error
+        print("Error resetting audio session: \(error.localizedDescription)")
+      }
+    }
   }
 
   func cancelRecording(promise: Promise) {
     cameraSession.cancelRecording(promise: promise)
+    
+    // Reset audio session if needed
+    if audio {
+      do {
+        try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+      } catch {
+        // We don't want to reject the promise here since the cancellation was successful
+        // Just log the error
+        print("Error resetting audio session: \(error.localizedDescription)")
+      }
+    }
   }
 
   func pauseRecording(promise: Promise) {

@@ -80,6 +80,11 @@ class CameraViewManager : ViewGroupManager<CameraView>() {
     view.audio = audio
   }
 
+  @ReactProp(name = "allowDeviceAudioPlayback")
+  fun setAllowDeviceAudioPlayback(view: CameraView, allowDeviceAudioPlayback: Boolean) {
+    view.allowDeviceAudioPlayback = allowDeviceAudioPlayback
+  }
+
   @ReactProp(name = "enableLocation")
   fun setEnableLocation(view: CameraView, enableLocation: Boolean) {
     view.enableLocation = enableLocation

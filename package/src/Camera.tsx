@@ -615,75 +615,85 @@ export class Camera extends React.PureComponent<CameraProps, CameraState> {
 
   /** @internal */
   public render(): React.ReactNode {
-    // We remove the big `device` object from the props because we only need to pass `cameraId` to native.
-    const { device, frameProcessor, codeScanner, enableFpsGraph, fps, videoBitRate, ...props } = this.props
+    const { device, isActive, codeScanner, frameProcessor, fps, videoBitRate, ...props } = this.props
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (device == null) {
-      throw new CameraRuntimeError(
-        'device/no-device',
-        'Camera: `device` is null! Select a valid Camera device. See: https://mrousavy.com/react-native-vision-camera/docs/guides/devices',
+    const frameProcessorConfig = frameProcessor != null ? { enableFrameProcessor: true } : {}
+    const fpsConfig = fps != null ? fps instanceof Array ? { minFps: fps[0], maxFps: fps[1] } : { minFps: fps, maxFps: fps } : {}
+    const codeScannersConfig = codeScanner != null ? { codeScannerOptions: codeScanner } : {}
+    const bitRateConfig = videoBitRate != null ? this.getBitRateMultiplier(videoBitRate) : {}
+    const allowDeviceAudioPlayback = props.allowDeviceAudioPlayback ?? false
+
+    // User defined this prop manually, use a fixed value.
+    const preview = props.preview ?? !isSkiaFrameProcessor(frameProcessor)
+
+    if (isSkiaFrameProcessor(frameProcessor)) {
+      return (
+        <SkiaCameraCanvas
+          style={props.style}
+          offscreenTextures={frameProcessor.offscreenTextures}
+          previewOrientation={frameProcessor.previewOrientation}>
+          <NativeCameraView
+            ref={this.ref}
+            {...props}
+            preview={preview}
+            cameraId={device.id}
+            isActive={isActive}
+            allowDeviceAudioPlayback={allowDeviceAudioPlayback}
+            {...frameProcessorConfig}
+            {...fpsConfig}
+            {...codeScannersConfig}
+            {...bitRateConfig}
+            style={StyleSheet.absoluteFill}
+            onViewReady={this.onViewReady}
+            onInitialized={this.onInitialized}
+            onStarted={this.onStarted}
+            onStopped={this.onStopped}
+            onPreviewStarted={this.onPreviewStarted}
+            onPreviewStopped={this.onPreviewStopped}
+            onShutter={this.onShutter}
+            onOutputOrientationChanged={this.onOutputOrientationChanged}
+            onPreviewOrientationChanged={this.onPreviewOrientationChanged}
+            onError={this.onError}
+            onCodeScanned={this.onCodeScanned}
+            onAverageFpsChanged={this.onAverageFpsChanged}
+          />
+        </SkiaCameraCanvas>
       )
     }
 
-    const shouldEnableBufferCompression = props.video === true && frameProcessor == null
-    const torch = this.state.isRecordingWithFlash ? 'on' : props.torch
-    const isRenderingWithSkia = isSkiaFrameProcessor(frameProcessor)
-    const shouldBeMirrored = device.position === 'front'
-
-    // minFps/maxFps is either the fixed `fps` value, or a value from the [min, max] tuple
-    const minFps = fps == null ? undefined : typeof fps === 'number' ? fps : fps[0]
-    const maxFps = fps == null ? undefined : typeof fps === 'number' ? fps : fps[1]
-
-    // bitrate is number (override) or string (multiplier)
-    let bitRateMultiplier: number | undefined
-    let bitRateOverride: number | undefined
-    if (typeof videoBitRate === 'number') {
-      // If the user passed an absolute number as a bit-rate, we just use this as a full override.
-      bitRateOverride = videoBitRate
-    } else if (typeof videoBitRate === 'string' && videoBitRate !== 'normal') {
-      // If the user passed 'low'/'normal'/'high', we need to apply this as a multiplier to the native bitrate instead of absolutely setting it
-      bitRateMultiplier = this.getBitRateMultiplier(videoBitRate)
-    }
-
     return (
-      <NativeCameraView
-        {...props}
-        cameraId={device.id}
-        ref={this.ref}
-        torch={torch}
-        minFps={minFps}
-        maxFps={maxFps}
-        isMirrored={props.isMirrored ?? shouldBeMirrored}
-        onViewReady={this.onViewReady}
-        onAverageFpsChanged={enableFpsGraph ? this.onAverageFpsChanged : undefined}
-        onInitialized={this.onInitialized}
-        onCodeScanned={this.onCodeScanned}
-        onStarted={this.onStarted}
-        onStopped={this.onStopped}
-        onPreviewStarted={this.onPreviewStarted}
-        onPreviewStopped={this.onPreviewStopped}
-        onShutter={this.onShutter}
-        videoBitRateMultiplier={bitRateMultiplier}
-        videoBitRateOverride={bitRateOverride}
-        onOutputOrientationChanged={this.onOutputOrientationChanged}
-        onPreviewOrientationChanged={this.onPreviewOrientationChanged}
-        onError={this.onError}
-        codeScannerOptions={codeScanner}
-        enableFrameProcessor={frameProcessor != null}
-        enableBufferCompression={props.enableBufferCompression ?? shouldEnableBufferCompression}
-        preview={isRenderingWithSkia ? false : (props.preview ?? true)}>
-        {isRenderingWithSkia && (
-          <SkiaCameraCanvas
-            style={styles.customPreviewView}
-            offscreenTextures={frameProcessor.offscreenTextures}
-            resizeMode={props.resizeMode}
+      <>
+        <NativeCameraView
+          ref={this.ref}
+          {...props}
+          preview={preview}
+          cameraId={device.id}
+          isActive={isActive}
+          allowDeviceAudioPlayback={allowDeviceAudioPlayback}
+          {...frameProcessorConfig}
+          {...fpsConfig}
+          {...codeScannersConfig}
+          {...bitRateConfig}
+          onViewReady={this.onViewReady}
+          onInitialized={this.onInitialized}
+          onStarted={this.onStarted}
+          onStopped={this.onStopped}
+          onPreviewStarted={this.onPreviewStarted}
+          onPreviewStopped={this.onPreviewStopped}
+          onShutter={this.onShutter}
+          onOutputOrientationChanged={this.onOutputOrientationChanged}
+          onPreviewOrientationChanged={this.onPreviewOrientationChanged}
+          onError={this.onError}
+          onCodeScanned={this.onCodeScanned}
+          onAverageFpsChanged={this.onAverageFpsChanged}
+        />
+        {props.enableFpsGraph === true && (
+          <FpsGraph 
+            style={styles.fps}
+            data={this.state.averageFpsSamples.slice(-MAX_BARS)}
           />
         )}
-        {enableFpsGraph && (
-          <FpsGraph style={styles.fpsGraph} averageFpsSamples={this.state.averageFpsSamples} targetMaxFps={props.format?.maxFps ?? 60} />
-        )}
-      </NativeCameraView>
+      </>
     )
   }
 }
@@ -694,6 +704,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fpsGraph: {
+    elevation: 1,
+    position: 'absolute',
+    left: 15,
+    top: 30,
+  },
+  fps: {
     elevation: 1,
     position: 'absolute',
     left: 15,

@@ -34,6 +34,7 @@ public final class CameraView: UIView, CameraSessionDelegate, PreviewViewDelegat
   @objc var photo = false
   @objc var video = false
   @objc var audio = false
+  @objc var allowDeviceAudioPlayback = false
   @objc var enableFrameProcessor = false
   @objc var codeScannerOptions: NSDictionary?
   @objc var pixelFormat: NSString?

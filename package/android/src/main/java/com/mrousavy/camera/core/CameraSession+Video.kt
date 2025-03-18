@@ -1,6 +1,11 @@
 package com.mrousavy.camera.core
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.util.Log
 import android.util.Size
 import androidx.annotation.OptIn
@@ -15,6 +20,7 @@ import com.mrousavy.camera.core.types.Video
 @SuppressLint("MissingPermission", "RestrictedApi")
 fun CameraSession.startRecording(
   enableAudio: Boolean,
+  allowDeviceAudioPlayback: Boolean = false,  // Default to false for backward compatibility
   options: RecordVideoOptions,
   callback: (video: Video) -> Unit,
   onError: (error: CameraError) -> Unit
@@ -34,10 +40,22 @@ fun CameraSession.startRecording(
   // TODO: Move this to JS so users can prepare recordings earlier
   // Prepare recording
   var pendingRecording = videoOutput.output.prepareRecording(context, outputOptions)
+  
   if (enableAudio) {
     checkMicrophonePermission()
+    
+    // Handle audio focus based on allowDeviceAudioPlayback
+    if (allowDeviceAudioPlayback) {
+      // Configure audio to allow background playback
+      configureAudioForConcurrentPlayback()
+    } else {
+      // Use default behavior that may interrupt other audio
+      configureDefaultAudio()
+    }
+    
     pendingRecording = pendingRecording.withAudioEnabled()
   }
+  
   pendingRecording = pendingRecording.asPersistentRecording()
 
   isRecordingCanceled = false
@@ -87,11 +105,95 @@ fun CameraSession.startRecording(
   }
 }
 
+/**
+ * Configures audio to allow other audio sources to continue playing during recording
+ */
+private fun CameraSession.configureAudioForConcurrentPlayback() {
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    val audioAttributes = AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_MEDIA)
+      .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+      .build()
+
+    val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+      .setAudioAttributes(audioAttributes)
+      .setAcceptsDelayedFocusGain(true)
+      .setOnAudioFocusChangeListener { }
+      .build()
+
+    // Request audio focus without fully interrupting other audio
+    audioManager.requestAudioFocus(focusRequest)
+  } else {
+    // For older Android versions
+    @Suppress("DEPRECATION")
+    audioManager.requestAudioFocus(
+      null,
+      AudioManager.STREAM_MUSIC,
+      AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+    )
+  }
+}
+
+/**
+ * Configures audio with default behavior that may interrupt other audio sources
+ */
+private fun CameraSession.configureDefaultAudio() {
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    val audioAttributes = AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_MEDIA)
+      .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+      .build()
+
+    val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+      .setAudioAttributes(audioAttributes)
+      .setAcceptsDelayedFocusGain(true)
+      .setOnAudioFocusChangeListener { }
+      .build()
+
+    // Request exclusive audio focus (may interrupt other audio)
+    audioManager.requestAudioFocus(focusRequest)
+  } else {
+    // For older Android versions
+    @Suppress("DEPRECATION")
+    audioManager.requestAudioFocus(
+      null,
+      AudioManager.STREAM_MUSIC,
+      AudioManager.AUDIOFOCUS_GAIN
+    )
+  }
+}
+
+/**
+ * Abandons audio focus when recording stops
+ */
+private fun CameraSession.abandonAudioFocus() {
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    // For Android 8.0+ (API level 26+)
+    val audioAttributes = AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_MEDIA)
+      .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+      .build()
+
+    val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+      .setAudioAttributes(audioAttributes)
+      .build()
+
+    audioManager.abandonAudioFocusRequest(focusRequest)
+  } else {
+    // For older Android versions
+    @Suppress("DEPRECATION")
+    audioManager.abandonAudioFocus(null)
+  }
+}
+
 fun CameraSession.stopRecording() {
   val recording = recording ?: throw NoRecordingInProgressError()
 
   recording.stop()
   this.recording = null
+  
+  // Abandon audio focus when recording stops
+  abandonAudioFocus()
 }
 
 fun CameraSession.cancelRecording() {
@@ -102,9 +204,16 @@ fun CameraSession.cancelRecording() {
 fun CameraSession.pauseRecording() {
   val recording = recording ?: throw NoRecordingInProgressError()
   recording.pause()
+  
+  // Temporarily abandon audio focus when recording is paused
+  abandonAudioFocus()
 }
 
 fun CameraSession.resumeRecording() {
   val recording = recording ?: throw NoRecordingInProgressError()
   recording.resume()
+  
+  // Re-request audio focus when recording resumes
+  // Since we don't know the original setting, we use the less intrusive option
+  configureAudioForConcurrentPlayback()
 }

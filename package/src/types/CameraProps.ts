@@ -84,6 +84,16 @@ export interface CameraProps extends ViewProps {
    */
   audio?: boolean
   /**
+   * Whether to allow other audio to continue playing while recording.
+   * When set to `true`, background audio playback (like music) will continue during recording.
+   * When set to `false` (default), starting a recording will pause any other audio playing on the device.
+   *
+   * @default false
+   * @platform ios
+   * @platform android
+   */
+  allowDeviceAudioPlayback?: boolean
+  /**
    * Specifies the pixel format of Frames streamed from a [Frame Processor](https://react-native-vision-camera.com/docs/guides/frame-processors).
    *
    * While `'yuv'` is the most efficient format, some ML models (such as TensorFlow Face Detection Models) require input Frames to be in RGB colorspace, otherwise they just output nonsense.

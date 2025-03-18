@@ -59,6 +59,7 @@ class CameraView(context: Context) :
   var photo = false
   var video = false
   var audio = false
+  var allowDeviceAudioPlayback = false
   var enableFrameProcessor = false
   var pixelFormat: PixelFormat = PixelFormat.YUV
   var enableLocation = false
