@@ -33,7 +33,7 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
           }
           try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-          callback.reject(error: .capture(.audioError(message: error.localizedDescription)), cause: error as NSError)
+          callback.reject(error: .capture(.unknown(message: error.localizedDescription)), cause: error as NSError)
           return
         }
       }
