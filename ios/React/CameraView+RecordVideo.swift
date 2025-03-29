@@ -23,12 +23,15 @@ extension CameraView: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAud
       // Configure the audio session based on allowDeviceAudioPlayback
       if audio {
         do {
+          try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
           if allowDeviceAudioPlayback {
             try AVAudioSession.sharedInstance().setCategory(.playAndRecord,
-                                                           options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers])
+                                                           mode: .videoRecording,
+                                                           options: [.mixWithOthers, .allowBluetooth, .defaultToSpeaker])
           } else {
             // Default behavior - interrupts other audio
             try AVAudioSession.sharedInstance().setCategory(.record,
+                                                           mode: .videoRecording,
                                                            options: [.allowBluetooth])
           }
           try AVAudioSession.sharedInstance().setActive(true)
